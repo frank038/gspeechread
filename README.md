@@ -22,7 +22,7 @@ Important: Download this program from the release link, because of the two model
 
 May have a lot of issues, but it works as intended so far.
 
-In speech-to-text mode, the following fixed list of commands are accepted:
+In speech-to-text mode (first of all, wait for the already spoken text to be written first, this program is not smart enough to understand any key words in any sentences), the following fixed list of commands are accepted:
 
 DELETE="backspace"
 DELETE_WORD="delete word"
