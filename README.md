@@ -14,4 +14,6 @@ Two voices included, english (the default) and italian. More voices can be added
 
 While this program has been written for a personal specific use case, I've made it generic: write the input, elaborate the input, send and write the output, read it.
 
+Important: Download this program from the release link, because of the two model languages included needed by vosk.
+
 May have a lot of issues, but it works as intended so far.
