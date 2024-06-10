@@ -33,3 +33,5 @@ DELETE_HISTORY="delete chronology"
 
 and some customizable pattern substitutions are also accepted (all in the substitutions_LANG.py file).
 
+Known issues:
+- without a microphone inserted and properly selected, this program use a lot of cpu cycles.
