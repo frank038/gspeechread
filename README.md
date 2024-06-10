@@ -8,7 +8,7 @@ Requirements:
 - gtk3 binding
 - everything else needed by the other internal module (just launch this program from terminal and read the errors).
 
-This program is divided in two sections: the first section is for the output, the second is for the input. The input can come from a microphone (which is enabled by default, it can be stopped but never deactivated) using the included vosk text-to-speech engine, or a keyboard. The submit button just send the input to the module module_inout.py that elaborates the text received and sends back another text (actually, this module just send back what has been received, because it is a demonstration module). After the text has been written in the output section, it can be also read by a text-to-speech program if enabled by using the script speakerVoice1.sh (actually setted for epeak-ng with the en voice).
+This program is divided in two sections: the first section is for the output, the second is for the input. The input can come from a microphone (which is enabled by default, it can be stopped but never deactivated) using the included vosk text-to-speech engine, or a keyboard. The submit button just send the input to the module module_inout.py that elaborates the text received and sends back another text (actually, this module just sends back what has been received, because it is a demonstration module). After the text has been written in the output section, it can be also read by a text-to-speech program if enabled by using the script speakerVoice1.sh (actually setted for epeak-ng with the en voice).
 
 Two voices included, english (the default) and italian. More voices can be added. In the config file cfg.py just choose the language you want to use, e.g. en or it or else (voices in the models folder).
 
