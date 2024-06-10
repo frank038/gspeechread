@@ -1,2 +1,17 @@
 # gspeechread
 A simple speech-to-text and text-to-speech program/frontend.
+
+Made for fun. Free to use and modify.
+
+Requirements:
+- python3
+- gtk3 binding
+- everything else needed by the other internal module (just launch this program from terminal and read the errors).
+
+This program is divided in two sections: the first section is for the output, the second is for the input. The input can come from a microphone (wich is enabled by default, it can be stopped but never deactivated) using the included vosk text-to-speech engine, or a keyboard. The submit button just send the input to the module module_inout.py that elaborate the text received and send back another text (actually, this module just send back what has been received, because it is a demonstration module). After the text has been written in the output section, it can be also read by a text-to-speech program if enabled by using the script speakerVoice1.sh (actually setted for epeak-ng with the en voice).
+
+Two voices included, english (the default) and italian. More voices can be added. In the config file cfg.py just choose the language you want to use, e.g. en or it or else (voices in the models folder).
+
+While this program has been written for a personal specific use case, I've made it generic: write the input, elaborate the input, send and write the output, read it.
+
+May have a lot of issues, but it works as intended so far.
