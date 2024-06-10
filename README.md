@@ -21,3 +21,15 @@ Some personalizations in the cfg.py config module.
 Important: Download this program from the release link, because of the two model languages included needed by vosk.
 
 May have a lot of issues, but it works as intended so far.
+
+In speech-to-text mode, the following fixed list of commands are accepted:
+
+DELETE="backspace"
+DELETE_WORD="delete word"
+DELETE_PAR="delete paragraph"
+RETURN="new line"
+SEND="submit"
+DELETE_HISTORY="delete chronology"
+
+and some customizable pattern substitutions are also accepted (all in the cfg.py file).
+
