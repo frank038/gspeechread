@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
-# V. 0.1
+# V. 0.2
+
+WINW = 1200
+WINH = 800
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -11,19 +14,13 @@ import sys
 from time import time, sleep
 import subprocess
 
-#from module_inout import speakThread
+from module_inout import speakClass
 
-WINW = 800
-WINH = 40
-
-# the window for the microphone
-mic_win = 0
-
-# ddata = None
+DWINW = 800
+DWINH = 40
 
 from cfg import *
 lang_language = lang
-# from sostituzioni import *
 module_substitutions = "substitutions_{}".format(lang_language)
 import importlib
 
@@ -60,10 +57,6 @@ EXIT=lang_module.EXIT
 
 import threading
 
-# if len(sys.argv) == 2 and sys.argv[1] == "-p":
-    # from pynput.keyboard import Controller, Key
-    # keyboard = Controller()
-
 import argparse
 import queue
 import sys
@@ -71,6 +64,8 @@ import sounddevice as sd
 from vosk import Model, KaldiRecognizer
 
 ################################
+
+is_ready = 1
 
 # audio device list
 audio_dev = sd.query_devices()
@@ -80,7 +75,6 @@ ddev = None
 # asamplerate = 44100
 num_channels = 1
 
-
 for adev in audio_dev_list:
    if adev["max_input_channels"] == 0:
        continue
@@ -89,26 +83,41 @@ for adev in audio_dev_list:
        asamplerate = int(adev["default_samplerate"])
        num_channels = int(adev["max_input_channels"])
        break
-#
+
+if ddev == None:
+    is_ready = 0
+
 if msamplerate != -1:
     asamplerate = msamplerate
 
-#
 if numch != -1:
     num_channels = numch
 
 q = queue.Queue()
 
+# # USELESS
+# def int_or_str(text):
+    # """Helper function for argument parsing."""
+    # try:
+        # return int(text)
+    # except ValueError:
+        # return text
 
-is_ready = 1
-if ddev == None:
+def _callback(indata, frames, time, status):
+    """This is called (from a separate thread) for each audio block."""
+    if status:
+        print("STATUS",status, file=sys.stderr)
+    q.put(bytes(indata))
+
+if mic_on_at_start == 0:
     is_ready = 0
     
 ########################
 
-from module_inout import speakClass
+# import writer_module
+# WM = writer_module.WM()
 
-###########
+################
 
 thread_stop = False
 
@@ -121,48 +130,51 @@ is_started = 0
 threadc = None
 def t_start(_signal):
     global threadc
+    #
     if is_ready:
         global is_started
         is_started = 1
-        threadc = cThread(sd, q, ddev, asamplerate, num_channels, w_text_buffer, _signal)
+        threadc = cThread(sd, _callback, q, ddev, asamplerate, num_channels, w_text_buffer, _signal)
+        # threadc = cThread(sd, q, ddev, asamplerate, num_channels, w_text_buffer, _signal)
         threadc.start()
 
 ################## window ####################
 
 class mainWindow(Gtk.Window):
     
-    def __init__(self, wtype):
+    def __init__(self, wtype, _q):
         Gtk.Window.__init__(self, title="Gspeachread")
         self.wtype = wtype
+        self.q = _q
         self.set_border_width(4)
-        self.resize(1200, 800)
+        self.resize(WINW, WINH)
         self.connect("destroy", self.t_exit)
         #
         self._signal = SignalObject()
         self._signal.connect("notify::propInt", self.on_notify_signal_int)
         self._signal.connect("notify::propList", self.on_notify_signal_list)
-        #
-        if self.wtype:
-            self.set_resizable(False)
+        # self._signal.connect("notify::propName", self.on_notify_signal_name)
         self.set_position(1)
         #
         self.vbox = Gtk.Box(orientation=1, spacing=10)
         self.add(self.vbox)
         #
-        if self.wtype == 0:
-            hbox = Gtk.Box(orientation=0, spacing=0)
-            self.vbox.pack_start(hbox, False, False, 1)
+        hbox = Gtk.Box(orientation=0, spacing=0)
+        self.vbox.pack_start(hbox, False, False, 1)
         #
-        if mic_on_at_start == 0:
+        if self.wtype == 1:
+            self.vbox2 = Gtk.Box(orientation=0, spacing=10)
+            self.vbox.pack_start(self.vbox2, True, True, 1)
+        #
+        if is_ready == 0:
             _mlabel = MIC+" OFF"
         else:
             _mlabel = MIC+" ON"
+        #
         self._startbtn = Gtk.Button(label=_mlabel)
         self._startbtn.connect("clicked", self._btnpause)
-        if self.wtype == 0:
-            hbox.pack_start(self._startbtn, True, False, 1)
-        else:
-            self.vbox.pack_start(self._startbtn, False, False, 1)
+        #
+        hbox.pack_start(self._startbtn, True, False, 1)
         #
         self.can_speak = 0
         self._speak_btn = Gtk.Button(label=READ+" OFF")
@@ -171,78 +183,79 @@ class mainWindow(Gtk.Window):
         #
         self._micbtn = Gtk.Button(label=MICROPHONE)
         self._micbtn.connect("clicked", self.set_mic)
-        if self.wtype == 0:
-            hbox.pack_start(self._micbtn, True, False, 1)
-        else:
-            self.vbox.pack_start(self._micbtn, False, False, 1)
+        hbox.pack_start(self._micbtn, True, False, 1)
         #
         self._closebtn = Gtk.Button(label=CLOSE)
         self._closebtn.connect("clicked", self.t_exit)
+        #
+        hbox.pack_start(self._closebtn, True, False, 1)
+        #####
+        ###### output box
+        scrolledwindowr = Gtk.ScrolledWindow()
+        scrolledwindowr.set_hexpand(True)
+        scrolledwindowr.set_vexpand(True)
+        # disable horizontal scrollbar
+        scrolledwindowr.set_policy(2, 1)
+        #
         if self.wtype == 0:
-            hbox.pack_start(self._closebtn, True, False, 1)
+            self.vbox.pack_start(scrolledwindowr, True, True, 1)
         else:
-            self.vbox.pack_start(self._closebtn, False, False, 1)
+            self.vbox2.pack_start(scrolledwindowr, False, True, 1)
+            self.vbox2.set_homogeneous(True)
         #
+        self.textviewr = Gtk.TextView()
+        self.textviewr.set_wrap_mode(2)
+        self.textviewr.set_editable(False)
+        scrolledwindowr.add(self.textviewr)
+        self.textbufferr = self.textviewr.get_buffer()
+        self.textbufferr.connect("changed", self.on_tbr_changed)
+        global w_text_bufferr
+        w_text_bufferr = self.textbufferr
+        riter_start = self.textbufferr.get_start_iter()
+        # mark
+        self.riter_start = self.textbufferr.create_mark("IterStart",riter_start,True)
+        del riter_start
+        #
+        self._text_full = ""
+        #
+        ###### input box
+        scrolledwindow = Gtk.ScrolledWindow()
+        scrolledwindow.set_hexpand(True)
+        scrolledwindow.set_vexpand(True)
+        # disable horizontal scrollbar
+        scrolledwindow.set_policy(2, 1)
         if self.wtype == 0:
-            ###### output box
-            self.r_box = Gtk.Box(orientation=0, spacing=0)
-            self.vbox.pack_start(self.r_box, True, True, 1)
-            #
-            scrolledwindowr = Gtk.ScrolledWindow()
-            scrolledwindowr.set_hexpand(True)
-            scrolledwindowr.set_vexpand(True)
-            # disable horizontal scrollbar
-            scrolledwindowr.set_policy(2, 1)
-            self.r_box.pack_start(scrolledwindowr, True, True, 1)
-            #
-            self.textviewr = Gtk.TextView()
-            self.textviewr.set_wrap_mode(2)
-            self.textviewr.set_editable(False)
-            scrolledwindowr.add(self.textviewr)
-            self.textbufferr = self.textviewr.get_buffer()
-            self.textbufferr.connect("changed", self.on_tbr_changed)
-            global w_text_bufferr
-            w_text_bufferr = self.textbufferr
-            riter_start = self.textbufferr.get_start_iter()
-            # mark
-            self.riter_start = self.textbufferr.create_mark("IterStart",riter_start,True)
-            del riter_start
-            #
-            self._text_full = ""
-            #
-            ###### input box
-            scrolledwindow = Gtk.ScrolledWindow()
-            scrolledwindow.set_hexpand(True)
-            scrolledwindow.set_vexpand(True)
-            # disable horizontal scrollbar
-            scrolledwindow.set_policy(2, 1)
             self.vbox.pack_start(scrolledwindow, True, True, 1)
-            self.textview = Gtk.TextView()
-            # word
-            self.textview.set_wrap_mode(2)
-            scrolledwindow.add(self.textview)
-            self.textbuffer = self.textview.get_buffer()
-            global w_text_buffer
-            w_text_buffer = self.textbuffer
-            ####
-            # buttons
-            self.b_box = Gtk.Box(orientation=0, spacing=0)
-            self.vbox.pack_start(self.b_box, False, False, 1)
-            #
-            self.send_btn = Gtk.Button(label=SEND)
-            self.send_btn.connect("clicked", self.on_send_btn)
-            self.b_box.pack_end(self.send_btn, False, False, 1)
+        else:
+            self.vbox2.pack_start(scrolledwindow, False, True, 1)
         #
-        global is_ready
-        if is_ready == 0:
-            global mic_win
-            if not mic_win:
-                win = MicWindow()
-                win.show_all()
-                mic_win = 1
+        self.textview = Gtk.TextView()
+        # word
+        self.textview.set_wrap_mode(2)
+        scrolledwindow.add(self.textview)
+        self.textbuffer = self.textview.get_buffer()
+        global w_text_buffer
+        w_text_buffer = self.textbuffer
+        ####
+        # buttons
+        self.b_box = Gtk.Box(orientation=0, spacing=0)
+        self.vbox.pack_start(self.b_box, False, False, 1)
+        # status label
+        self.status_label = Gtk.Label(label="")
+        self.b_box.pack_start(self.status_label, False, False, 6)
         #
+        self.service_label = Gtk.Label(label="")
+        self.b_box.pack_start(self.service_label, False, False, 6)
+        #
+        self.send_btn = Gtk.Button(label=SEND)
+        self.send_btn.connect("clicked", self.on_send_btn)
+        self.b_box.pack_end(self.send_btn, False, False, 1)
+        #####
         self.show_all()
         #
+        if not mic and mic_on_at_start == 1:
+            self.set_mic(None)
+        # is_ready
         if mic_on_at_start:
             t_start(self._signal)
         #
@@ -273,6 +286,7 @@ class mainWindow(Gtk.Window):
             self.textbuffer.delete(iter_start,iter_end)
             del iter_start
             del iter_end
+            self.q.queue.clear()
             self._signal.propInt = -99
         
     def on_notify_signal_list(self, obj, gparamstring):
@@ -304,10 +318,9 @@ class mainWindow(Gtk.Window):
     
     # output widget
     def on_tbr_changed(self, _tbobj):
-        #
         if self._signal.propName == "-111":
             return
-        #
+        #########
         if self._text_full != "":
             self._signal.propName = "-111"
             #
@@ -316,7 +329,7 @@ class mainWindow(Gtk.Window):
                 _speakThread.start()
             else:
                 self._signal.propInt = -77
-            # 
+            #
             self._text_full = ""
             #
             self._signal.propName = ""
@@ -325,21 +338,20 @@ class mainWindow(Gtk.Window):
         if w.get_label() == (MIC+" ON"):
             w.set_label(MIC+" OFF")
             self._micbtn.set_sensitive(True)
-            self._signal.propInt = -111
+            self._signal.propName = "-111"
             #
             self.textview.grab_focus()
         else:
-            global mic_on_at_start
-            self._micbtn.set_sensitive(False)
-            #
-            if mic_on_at_start == 0:
-                mic_on_at_start = 1
+            global is_ready
+            if is_ready == 0:
+                is_ready = 1
                 t_start(self._signal)
             #
-            sleep(3)
+            self._micbtn.set_sensitive(False)
+            #
             w.set_label(MIC+" ON")
             #
-            self._signal.propInt = -99
+            self._signal.propName = ""
             #
             self.textview.grab_focus()
     
@@ -348,11 +360,23 @@ class mainWindow(Gtk.Window):
         Gtk.main_quit()
     
     def set_mic(self, widget):
-        global mic_win
-        if not mic_win:
-            win = MicWindow()
-            win.show_all()
-            mic_win = 1
+        global mic
+        dialog = MicWindow(MICROPHONE, self)
+        response = dialog.run()
+        #
+        _mic = dialog.get_result()
+        dialog.destroy()
+        if response == Gtk.ResponseType.OK:
+            if _mic:
+                if _mic != mic:
+                    mic = _mic
+                    with open("cfg.py", "w") as ff:
+                        ff.write('mic="{}"\n'.format(mic))
+                        ff.write("asamplerate={}\n".format(asamplerate))
+                        ff.write("msamplerate={}\n".format(msamplerate))
+                        ff.write("numch={}\n".format(numch))
+                        ff.write('lang="{}"\n'.format(lang_language))
+                        ff.write('mic_on_at_start={}'.format(mic_on_at_start))
 
 ########################
 
@@ -412,10 +436,12 @@ class SignalObject(GObject.Object):
         
 
 class cThread(threading.Thread):
-    def __init__(self, sd, q, ddev, samplerate, num_ch, w_text_buffer, _signal):
+    def __init__(self, sd, _callback, q, ddev, samplerate, num_ch, w_text_buffer, _signal):
+    # def __init__(self, sd, q, ddev, samplerate, num_ch, w_text_buffer, _signal):
         super(cThread, self).__init__()
         self.ii = 0
         self.sd = sd
+        self._callback = _callback
         self.q = q
         self.ddev = ddev
         self.samplerate = samplerate
@@ -423,30 +449,29 @@ class cThread(threading.Thread):
         self.w_text_buffer = w_text_buffer
         self._signal = _signal
         
-    def _callback(self, indata, frames, time, status):
-        """This is called (from a separate thread) for each audio block."""
-        if status:
-            print("STATUS",status, file=sys.stderr)
-        self.q.put(bytes(indata))
+    # def _callback(self, indata, frames, time, status):
+        # """This is called (from a separate thread) for each audio block."""
+        # if status:
+            # print("STATUS",status, file=sys.stderr)
+        # self.q.put(bytes(indata))
     
     def run(self):
         while True:
             with self.sd.RawInputStream(samplerate=self.samplerate, blocksize = 8000, device=self.ddev,
                 dtype="int16", channels=self.num_ch, callback=self._callback):
                 rec = KaldiRecognizer(Model("models/{}".format(lang_language)), self.samplerate)
-                #
                 # first word capitalized
                 word_capitalized = 1
                 #
                 while self._signal.propInt != -9:
-                    #
-                    if self._signal.propName == "-111":
-                        if not self.q.empty():
-                            self.q.clear()
-                        continue
                     data = self.q.get()
                     if rec.AcceptWaveform(data):
                         rddata = rec.Result().strip("\n")
+                        #
+                        if self._signal.propName == "-111":
+                            if not self.q.empty():
+                                self.q.queue.clear()
+                            continue
                         #
                         text_to_send = rddata[2:-2].split(":")[1][2:-1]
                         #
@@ -585,8 +610,12 @@ class cThread(threading.Thread):
                         else:
                             WM._write_text(text_to_send)
                             WM._write_text(" ")
-                    
-                    #
+                        
+                        # # else:
+                            # # print(rec.PartialResult())
+                        # if dump_fn is not None:
+                            # dump_fn.write(data)
+                #
                 else:
                     break
             return
@@ -594,27 +623,27 @@ class cThread(threading.Thread):
     
 ################## Microphone ##################
 
-class MicWindow(Gtk.Window):
+class MicWindow(Gtk.Dialog):
 
-    def __init__(self):
-        Gtk.Window.__init__(self, title="")
-        self.connect("destroy", self.wclose)
-        self.set_border_width(4)
-        self.resize(WINW, WINH)
-        self.set_keep_above(True)
+    def __init__(self, _title, parent):
+        super().__init__(title=_title, transient_for=parent, flags=0)
+        self.add_buttons(Gtk.STOCK_OK, Gtk.ResponseType.OK)
+        self.set_default_size(DWINW, DWINH)
+        self.parent = parent
+        self.result = ""
+        self.connect("response", self.on_response)
         #
         self.set_resizable(False)
-        self.set_position(1)
         #
-        self.vbox = Gtk.Box(orientation=1, spacing=10)
-        self.add(self.vbox)
+        vbox = self.get_content_area()
         #
-        self.label1 = Gtk.Label(label="{}".format(MICROPHONE))
+        #label1 = Gtk.Label(label="{}".format(MICROPHONE))
+        label1 = Gtk.Label(label="      ")
         # 
-        self.vbox.pack_start(self.label1, True, True, 1)
+        vbox.pack_start(label1, True, True, 1)
         #
-        self.label2 = Gtk.Label(label="{}".format("(Restart the program)"))
-        self.vbox.pack_start(self.label2, True, True, 1)
+        # self.label2 = Gtk.Label(label="{}".format("(Restart the program)"))
+        # vbox.pack_start(self.label2, True, True, 1)
         #
         self.miccombo = Gtk.ComboBoxText()
         self.miccombo.props.hexpand = True
@@ -633,45 +662,25 @@ class MicWindow(Gtk.Window):
         #
         self.miccombo.connect('changed', self.miccombo_changed)
         #
-        self.vbox.pack_start(self.miccombo, True, True, 1)
+        vbox.pack_start(self.miccombo, True, True, 1)
         #
-        self.button2 = Gtk.Button(label=CLOSE)
-        self.button2.connect("clicked", self.cclose)
-        self.button2.props.valign = 2
-        self.vbox.pack_start(self.button2, True, True, 1)
+        self._mic = None
         #
+        self.show_all()
         
     def miccombo_changed(self, w):
-        global mic
-        mic = self.miccombo.get_active_text()
+        self._mic = self.miccombo.get_active_text()
     
-    def wclose(self, w):
-        if mic == "":
-            self.destroy()
-        #
-        global mic_win
-        mic_win = 0
-        #
-        with open("cfg.py", "w") as ff:
-            ff.write('mic="{}"\n'.format(mic))
-            ff.write("asamplerate={}\n".format(asamplerate))
-            ff.write("msamplerate={}\n".format(msamplerate))
-            ff.write("numch={}\n".format(numch))
-            ff.write('lang="{}"\n'.format(lang_language))
-            ff.write('mic_on_at_start="{}"'.format(mic_on_at_start))
-        #
-        # self._signal.propInt = -9
-        #
-        self.destroy()
-        Gtk.main_quit()
+    def on_response(self, widget, response_id):
+        self.result = self._mic
     
-    def cclose(self, w):
-        self.destroy()
-    
+    def get_result(self):
+        return self.result
+
     
 ########
 
-m = mainWindow(0)
+m = mainWindow(0, q)
 
 Gtk.main()
 
